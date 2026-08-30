@@ -1,0 +1,11 @@
+services:
+  quizbot:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - quizbot-data:/data
+
+volumes:
+  quizbot-data:

@@ -1,0 +1,17 @@
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.eggs/
+dist/
+build/
+.git/
+.env
+tests/
+spike_access_code.py
+spike.sh
+*.db
+*.db-shm
+*.db-wal
