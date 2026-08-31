@@ -11,6 +11,7 @@ from canvas_code_bot.core.exceptions import ScheduleConflictError
 from canvas_code_bot.core.models import Schedule, ScheduleKind, ScheduleStatus
 from canvas_code_bot.bot.commands.schedule_commands import (
     _DEFAULT_WINDOW_DAYS,
+    _LOCAL_TZ,
     _TZ,
     _parse_dt,
     _parse_ids,
@@ -18,6 +19,11 @@ from canvas_code_bot.bot.commands.schedule_commands import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _fmt_dt(dt: datetime) -> str:
+    """Convert a stored naive-UTC datetime to Eastern time for display."""
+    return dt.replace(tzinfo=timezone.utc).astimezone(_LOCAL_TZ).strftime("%Y-%m-%dT%H:%M ET")
 
 
 class SchedulesGroup(app_commands.Group, name="schedules", description="Manage rotation schedules."):
@@ -138,18 +144,14 @@ class SchedulesGroup(app_commands.Group, name="schedules", description="Manage r
             if rep.kind.value == "recurring":
                 timing.append(f"cron: `{rep.cron}`")
                 if rep.start_at:
-                    timing.append(f"start: {rep.start_at.strftime('%Y-%m-%dT%H:%M')}")
+                    timing.append(f"start: {_fmt_dt(rep.start_at)}")
                 if rep.end_at:
-                    timing.append(f"end: {rep.end_at.strftime('%Y-%m-%dT%H:%M')}")
+                    timing.append(f"end: {_fmt_dt(rep.end_at)}")
             else:
                 if rep.run_at:
-                    timing.append(f"at: {rep.run_at.strftime('%Y-%m-%dT%H:%M')}")
+                    timing.append(f"at: {_fmt_dt(rep.run_at)}")
 
-            last = (
-                rep.last_fired_at.strftime('%Y-%m-%dT%H:%M')
-                if rep.last_fired_at
-                else "never"
-            )
+            last = _fmt_dt(rep.last_fired_at) if rep.last_fired_at else "never"
             timing.append(f"last fired: {last}")
 
             status_tag = f" [{rep.status.value}]" if show_all else ""

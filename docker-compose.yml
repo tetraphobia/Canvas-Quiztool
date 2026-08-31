@@ -1,6 +1,7 @@
 services:
   quizbot:
     build: .
+    image: tetraphobia/canvas-quizbot:latest
     restart: unless-stopped
     env_file:
       - .env
