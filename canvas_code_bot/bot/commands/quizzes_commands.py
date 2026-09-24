@@ -25,11 +25,12 @@ class QuizzesGroup(app_commands.Group, name="quizzes", description="Manage regis
             color=discord.Color.blurple(),
         )
         embed.add_field(
-            name="`list [show_all]`",
+            name="`list [show_all] [show_sections]`",
             value=(
                 "Show registered quizzes.\n"
-                "Default: only quizzes with at least one active schedule.\n"
-                "• `show_all:True` — include quizzes with no schedule."
+                "Default: grouped by name, only quizzes with at least one active schedule.\n"
+                "• `show_all:True` — include quizzes with no schedule.\n"
+                "• `show_sections:True` — show each section separately with its course and internal ID."
             ),
             inline=False,
         )
@@ -65,9 +66,13 @@ class QuizzesGroup(app_commands.Group, name="quizzes", description="Manage regis
     @app_commands.command(name="list", description="Show registered quizzes.")
     @app_commands.describe(
         show_all="Include quizzes that have no active schedule (default: false).",
+        show_sections="Show each section separately with its course and internal ID (default: false).",
     )
     async def list_quizzes(
-        self, interaction: discord.Interaction, show_all: bool = False
+        self,
+        interaction: discord.Interaction,
+        show_all: bool = False,
+        show_sections: bool = False,
     ) -> None:
         quizzes = self._svc.quiz_repo.list_all()
         if not quizzes:
@@ -76,23 +81,44 @@ class QuizzesGroup(app_commands.Group, name="quizzes", description="Manage regis
 
         embed = discord.Embed(title="Registered Quizzes", color=discord.Color.blurple())
         shown = 0
-        for q in quizzes:
-            active_scheds = self._svc.schedule_repo.list_for_quiz(q.id)
-            has_schedule = bool(active_scheds)
-            if not show_all and not has_schedule:
-                continue
-            status = f"{len(active_scheds)} schedule(s)" if has_schedule else "no schedule"
-            embed.add_field(
-                name=f"id={q.id} · {q.quiz_name}",
-                value=f"Course: {q.course_name} · {status}",
-                inline=False,
-            )
-            shown += 1
+
+        if show_sections:
+            for q in quizzes:
+                active_scheds = self._svc.schedule_repo.list_for_quiz(q.id)
+                has_schedule = bool(active_scheds)
+                if not show_all and not has_schedule:
+                    continue
+                status = f"{len(active_scheds)} schedule(s)" if has_schedule else "no schedule"
+                embed.add_field(
+                    name=f"id={q.id} · {q.quiz_name}",
+                    value=f"Course: {q.course_name} · {status}",
+                    inline=False,
+                )
+                shown += 1
+        else:
+            groups: dict[str, list] = {}
+            for q in quizzes:
+                groups.setdefault(q.quiz_name, []).append(q)
+
+            for name, group_quizzes in groups.items():
+                total_scheds = sum(
+                    len(self._svc.schedule_repo.list_for_quiz(q.id)) for q in group_quizzes
+                )
+                if not show_all and total_scheds == 0:
+                    continue
+                section_count = len(group_quizzes)
+                sched_str = f"{total_scheds} active schedule(s)" if total_scheds else "no schedules"
+                embed.add_field(
+                    name=name,
+                    value=f"{section_count} section(s) · {sched_str}",
+                    inline=False,
+                )
+                shown += 1
 
         if shown == 0:
-            msg = "No scheduled quizzes." if not show_all else "No quizzes registered."
+            msg = "No scheduled quizzes."
             if not show_all:
-                msg += " Use `show_all: True` to see all registered quizzes."
+                msg += " Use `show_all:True` to see all registered quizzes."
             await interaction.response.send_message(msg, ephemeral=True)
             return
 
