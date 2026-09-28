@@ -126,6 +126,13 @@ class AllowedRole:
 
 
 @dataclass
+class Course:
+    """A Canvas course tracked by the bot (maps to the ``courses`` table)."""
+    course_id: int
+    course_name: str
+
+
+@dataclass
 class RotationResult:
     """Result of a single rotation attempt."""
     outcome: RotationOutcome

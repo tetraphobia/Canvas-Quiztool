@@ -19,6 +19,7 @@ from canvas_code_bot.data.entities import Base
 from canvas_code_bot.data.repositories import (
     SqlAllowedRoleRepo,
     SqlConfigRepo,
+    SqlCourseRepo,
     SqlHistoryRepo,
     SqlQuizRepo,
     SqlScheduleRepo,
@@ -46,6 +47,7 @@ async def main() -> None:
     history_repo = SqlHistoryRepo(sf)
     config_repo = SqlConfigRepo(sf)
     allowed_role_repo = SqlAllowedRoleRepo(sf)
+    course_repo = SqlCourseRepo(sf)
 
     async with aiohttp.ClientSession() as http_session:
         canvas_client = CanvasClient(
@@ -69,7 +71,7 @@ async def main() -> None:
             config_repo=config_repo,
             admin_discord_id=cfg.admin_discord_id,
         )
-        registry_svc = RegistryService(quiz_repo=quiz_repo, canvas=canvas)
+        registry_svc = RegistryService(quiz_repo=quiz_repo, canvas=canvas, course_repo=course_repo)
         config_svc = ConfigService(quiz_repo=quiz_repo, config_repo=config_repo)
 
         scheduler = RotationScheduler(cfg.db_url)
@@ -125,6 +127,7 @@ async def main() -> None:
             config_repo=config_repo,
             scheduler=scheduler,
             canvas=canvas,
+            course_repo=course_repo,
             allowed_role_repo=allowed_role_repo,
             admin_discord_id=cfg.admin_discord_id,
         )

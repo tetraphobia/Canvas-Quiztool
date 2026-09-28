@@ -9,6 +9,7 @@ from canvas_code_bot.core.interfaces import (
     CanvasPort,
     CodeGen,
     ConfigRepo,
+    CourseRepo,
     HistoryRepo,
     NotifierPort,
     QuizRepo,
@@ -224,9 +225,19 @@ class RotationService:
 class RegistryService:
     """Manages quiz registration."""
 
-    def __init__(self, quiz_repo: QuizRepo, canvas: CanvasPort) -> None:
+    def __init__(self, quiz_repo: QuizRepo, canvas: CanvasPort, course_repo: CourseRepo) -> None:
         self._quiz_repo = quiz_repo
         self._canvas = canvas
+        self._course_repo = course_repo
+
+    async def _upsert_course(self, course_id: int) -> str:
+        """Fetch course name from Canvas and persist it; returns the name."""
+        try:
+            name = await self._canvas.get_course_name(course_id)
+        except Exception:
+            name = f"Course {course_id}"
+        self._course_repo.upsert(course_id, name)
+        return name
 
     async def add_quiz(
         self, course_id: int, assignment_id: int, added_by: int
@@ -243,12 +254,13 @@ class RegistryService:
             )
 
         info = await self._canvas.get_quiz(course_id, assignment_id)
+        course_name = await self._upsert_course(course_id)
 
         now = datetime.now(timezone.utc).replace(tzinfo=None)
         quiz = Quiz(
             course_id=course_id,
             assignment_id=assignment_id,
-            course_name=f"Course {course_id}",
+            course_name=course_name,
             quiz_name=info.title,
             engine=info.engine,
             resource_id=info.resource_id,
@@ -273,11 +285,13 @@ class RegistryService:
                 f"is already registered as id={existing.id}."
             )
 
+        course_name = await self._upsert_course(course_id)
+
         now = datetime.now(timezone.utc).replace(tzinfo=None)
         quiz = Quiz(
             course_id=course_id,
             assignment_id=info.assignment_id,
-            course_name=f"Course {course_id}",
+            course_name=course_name,
             quiz_name=info.title,
             engine=info.engine,
             resource_id=info.resource_id,

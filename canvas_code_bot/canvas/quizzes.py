@@ -138,3 +138,20 @@ class CanvasQuizGateway:
         if quiz.engine == QuizEngine.NEW:
             return await self._new.verify_access_code(quiz, code)
         return await self._classic.verify_access_code(quiz, code)
+
+    async def get_course_name(self, course_id: int) -> str:
+        data = await self._client.get(f"/api/v1/courses/{course_id}")
+        return data.get("name", f"Course {course_id}")
+
+    async def create_announcement(self, course_id: int, title: str, message: str) -> int:
+        """Post an announcement to a course. Returns the discussion topic ID."""
+        _, body = await self._client.post(
+            f"/api/v1/courses/{course_id}/discussion_topics",
+            {
+                "title": title,
+                "message": message,
+                "is_announcement": True,
+                "published": True,
+            },
+        )
+        return body["id"] if body else 0

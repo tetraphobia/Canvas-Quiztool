@@ -44,8 +44,15 @@ class FakeCanvas:
             raise self._raises
         return self._classic_info
 
+    async def get_course_name(self, course_id): raise NotImplementedError
     async def set_access_code(self, quiz, code): ...
     async def verify_access_code(self, quiz, code): return True
+
+
+class FakeCourseRepo:
+    def upsert(self, course_id, course_name): ...
+    def get(self, course_id): return None
+    def list_all(self): return []
 
 
 class FakeQuizRepo:
@@ -108,7 +115,7 @@ class FakeConfigRepo:
 
 async def test_add_quiz_calls_canvas():
     canvas = FakeCanvas()
-    svc = RegistryService(quiz_repo=FakeQuizRepo(), canvas=canvas)
+    svc = RegistryService(quiz_repo=FakeQuizRepo(), canvas=canvas, course_repo=FakeCourseRepo())
     await svc.add_quiz(course_id=10, assignment_id=100, added_by=999)
     assert canvas.get_calls == [(10, 100)]
 
@@ -118,21 +125,21 @@ async def test_add_quiz_uses_canvas_title():
         assignment_id=100, title="Final Exam", requires_access_code=True,
         engine=QuizEngine.NEW, resource_id=100,
     )
-    svc = RegistryService(quiz_repo=FakeQuizRepo(), canvas=FakeCanvas(quiz_info=info))
+    svc = RegistryService(quiz_repo=FakeQuizRepo(), canvas=FakeCanvas(quiz_info=info), course_repo=FakeCourseRepo())
     quiz = await svc.add_quiz(course_id=10, assignment_id=100, added_by=999)
     assert quiz.quiz_name == "Final Exam"
 
 
 async def test_add_quiz_assigns_id():
     repo = FakeQuizRepo()
-    svc = RegistryService(quiz_repo=repo, canvas=FakeCanvas())
+    svc = RegistryService(quiz_repo=repo, canvas=FakeCanvas(), course_repo=FakeCourseRepo())
     quiz = await svc.add_quiz(course_id=10, assignment_id=100, added_by=999)
     assert quiz.id != 0
     assert len(repo.list_all()) == 1
 
 
 async def test_add_quiz_sets_course_name_from_id():
-    svc = RegistryService(quiz_repo=FakeQuizRepo(), canvas=FakeCanvas())
+    svc = RegistryService(quiz_repo=FakeQuizRepo(), canvas=FakeCanvas(), course_repo=FakeCourseRepo())
     quiz = await svc.add_quiz(course_id=42, assignment_id=100, added_by=999)
     assert quiz.course_name == "Course 42"
 
@@ -143,41 +150,41 @@ async def test_add_quiz_already_registered_raises():
         quiz_name="Midterm", added_by=999, added_at=_NOW,
     )
     repo = FakeQuizRepo(quizzes=[existing])
-    svc = RegistryService(quiz_repo=repo, canvas=FakeCanvas())
+    svc = RegistryService(quiz_repo=repo, canvas=FakeCanvas(), course_repo=FakeCourseRepo())
     with pytest.raises(ValueError, match="already registered"):
         await svc.add_quiz(course_id=10, assignment_id=100, added_by=999)
 
 
 async def test_add_quiz_propagates_canvas_error():
     canvas = FakeCanvas(raises=CanvasNotFoundError("not found", http_status=404))
-    svc = RegistryService(quiz_repo=FakeQuizRepo(), canvas=canvas)
+    svc = RegistryService(quiz_repo=FakeQuizRepo(), canvas=canvas, course_repo=FakeCourseRepo())
     with pytest.raises(CanvasNotFoundError):
         await svc.add_quiz(course_id=10, assignment_id=999, added_by=999)
 
 
 async def test_add_quiz_by_quiz_id_calls_canvas():
     canvas = FakeCanvas()
-    svc = RegistryService(quiz_repo=FakeQuizRepo(), canvas=canvas)
+    svc = RegistryService(quiz_repo=FakeQuizRepo(), canvas=canvas, course_repo=FakeCourseRepo())
     await svc.add_quiz_by_quiz_id(course_id=10, quiz_id=50, added_by=999)
     assert canvas.get_classic_calls == [(10, 50)]
 
 
 async def test_add_quiz_by_quiz_id_uses_canvas_title():
-    svc = RegistryService(quiz_repo=FakeQuizRepo(), canvas=FakeCanvas())
+    svc = RegistryService(quiz_repo=FakeQuizRepo(), canvas=FakeCanvas(), course_repo=FakeCourseRepo())
     quiz = await svc.add_quiz_by_quiz_id(course_id=10, quiz_id=50, added_by=999)
     assert quiz.quiz_name == "Classic Quiz"
 
 
 async def test_add_quiz_by_quiz_id_assigns_id():
     repo = FakeQuizRepo()
-    svc = RegistryService(quiz_repo=repo, canvas=FakeCanvas())
+    svc = RegistryService(quiz_repo=repo, canvas=FakeCanvas(), course_repo=FakeCourseRepo())
     quiz = await svc.add_quiz_by_quiz_id(course_id=10, quiz_id=50, added_by=999)
     assert quiz.id != 0
     assert len(repo.list_all()) == 1
 
 
 async def test_add_quiz_by_quiz_id_stores_classic_engine():
-    svc = RegistryService(quiz_repo=FakeQuizRepo(), canvas=FakeCanvas())
+    svc = RegistryService(quiz_repo=FakeQuizRepo(), canvas=FakeCanvas(), course_repo=FakeCourseRepo())
     quiz = await svc.add_quiz_by_quiz_id(course_id=10, quiz_id=50, added_by=999)
     assert quiz.engine == QuizEngine.CLASSIC
     assert quiz.resource_id == 50
@@ -190,14 +197,14 @@ async def test_add_quiz_by_quiz_id_already_registered_raises():
         engine=QuizEngine.CLASSIC, resource_id=50,
     )
     repo = FakeQuizRepo(quizzes=[existing])
-    svc = RegistryService(quiz_repo=repo, canvas=FakeCanvas())
+    svc = RegistryService(quiz_repo=repo, canvas=FakeCanvas(), course_repo=FakeCourseRepo())
     with pytest.raises(ValueError, match="already registered"):
         await svc.add_quiz_by_quiz_id(course_id=10, quiz_id=50, added_by=999)
 
 
 async def test_add_quiz_by_quiz_id_propagates_canvas_error():
     canvas = FakeCanvas(raises=CanvasNotFoundError("not found", http_status=404))
-    svc = RegistryService(quiz_repo=FakeQuizRepo(), canvas=canvas)
+    svc = RegistryService(quiz_repo=FakeQuizRepo(), canvas=canvas, course_repo=FakeCourseRepo())
     with pytest.raises(CanvasNotFoundError):
         await svc.add_quiz_by_quiz_id(course_id=10, quiz_id=999, added_by=999)
 
@@ -208,7 +215,7 @@ def test_remove_quiz_delegates_to_repo():
         quiz_name="Midterm", added_by=999, added_at=_NOW,
     )
     repo = FakeQuizRepo(quizzes=[existing])
-    svc = RegistryService(quiz_repo=repo, canvas=FakeCanvas())
+    svc = RegistryService(quiz_repo=repo, canvas=FakeCanvas(), course_repo=FakeCourseRepo())
     svc.remove_quiz(quiz_id=1)
     assert 1 in repo.removed
 

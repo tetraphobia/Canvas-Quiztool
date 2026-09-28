@@ -7,11 +7,22 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from canvas_code_bot.data.db import Base
 
 
+class CourseEntity(Base):
+    __tablename__ = "courses"
+
+    course_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    course_name: Mapped[str] = mapped_column(Text, nullable=False)
+
+    quizzes: Mapped[list["QuizEntity"]] = relationship(back_populates="course")
+
+
 class QuizEntity(Base):
     __tablename__ = "quizzes"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    course_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    course_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("courses.course_id"), nullable=False
+    )
     course_name: Mapped[str] = mapped_column(Text, nullable=False)
     assignment_id: Mapped[int] = mapped_column(Integer, nullable=False)
     quiz_name: Mapped[str] = mapped_column(Text, nullable=False)
@@ -22,6 +33,8 @@ class QuizEntity(Base):
     current_code_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     added_by: Mapped[int] = mapped_column(Integer, nullable=False)
     added_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+
+    course: Mapped["CourseEntity"] = relationship(back_populates="quizzes")
 
     schedules: Mapped[list["ScheduleEntity"]] = relationship(
         back_populates="quiz", cascade="all, delete-orphan", passive_deletes=True
