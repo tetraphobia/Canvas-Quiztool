@@ -6,6 +6,7 @@ import logging
 import discord
 from discord import app_commands
 
+from canvas_code_bot.bot.commands.announce_commands import AnnounceGroup
 from canvas_code_bot.bot.commands.codes_commands import CodesGroup
 from canvas_code_bot.bot.commands.config_commands import ConfigGroup
 from canvas_code_bot.bot.commands.quizzes_commands import QuizzesGroup
@@ -22,6 +23,7 @@ class QbGroup(app_commands.Group, name="qb", description="Canvas quiz access-cod
         self.add_command(SchedulesGroup(services))
         self.add_command(CodesGroup(services))
         self.add_command(ConfigGroup(services))
+        self.add_command(AnnounceGroup(services))
 
     @app_commands.command(name="help", description="Show an overview of all /qb commands.")
     async def help(self, interaction: discord.Interaction) -> None:
@@ -70,6 +72,14 @@ class QbGroup(app_commands.Group, name="qb", description="Canvas quiz access-cod
             value=(
                 "Set the relay channel and manage allowed roles.\n"
                 "Run `/qb config help` for details."
+            ),
+            inline=False,
+        )
+        embed.add_field(
+            name="/qb announce",
+            value=(
+                "Post a Canvas announcement to all tracked courses or a subset.\n"
+                "`/qb announce all title:<title> message:<body> [course_ids:<ids>]`"
             ),
             inline=False,
         )

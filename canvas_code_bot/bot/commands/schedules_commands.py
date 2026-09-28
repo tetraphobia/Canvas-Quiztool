@@ -9,12 +9,12 @@ from discord import app_commands
 
 from canvas_code_bot.core.exceptions import ScheduleConflictError
 from canvas_code_bot.core.models import Schedule, ScheduleKind, ScheduleStatus
+from canvas_code_bot.bot.commands.command_utils import lookup_quiz_ids_by_name, parse_ids
 from canvas_code_bot.bot.commands.schedule_commands import (
     _DEFAULT_WINDOW_DAYS,
     _LOCAL_TZ,
     _TZ,
     _parse_dt,
-    _parse_ids,
     _validate,
 )
 
@@ -52,9 +52,12 @@ class SchedulesGroup(app_commands.Group, name="schedules", description="Manage r
             inline=False,
         )
         embed.add_field(
-            name="`add quizids:<ids> [options]`",
+            name="`add [quizids:<ids>] [quizname:<name>] [options]`",
             value=(
-                "Add a schedule for one or more quizzes (comma-separated IDs).\n"
+                "Add a schedule for one or more quizzes.\n"
+                "**Quiz selection** — provide exactly one of:\n"
+                "• `quizids:<ids>` — comma-separated numeric IDs (e.g. `1,2,3`)\n"
+                "• `quizname:<name>` — exact quiz name, targets all sections (e.g. `Midterm Exam`)\n"
                 "**Timing** — provide exactly one of:\n"
                 "• `cron:<5-field crontab>` — recurring (e.g. `0 9 * * 1-5`)\n"
                 "• `at:<ISO 8601 datetime>` — one-shot (e.g. `2026-09-01T09:00`)\n"
@@ -165,7 +168,8 @@ class SchedulesGroup(app_commands.Group, name="schedules", description="Manage r
 
     @app_commands.command(name="add", description="Add a rotation schedule for one or more quizzes.")
     @app_commands.describe(
-        quizids="Comma-separated quiz IDs.",
+        quizids="Comma-separated numeric quiz IDs (mutually exclusive with quizname).",
+        quizname="Exact quiz name — targets all sections with this name (mutually exclusive with quizids).",
         random="Generate a random code each time (default: true).",
         code="Fixed code (only when random=false).",
         cron="5-field crontab for recurring (e.g. `0 9 * * 1-5`).",
@@ -176,7 +180,8 @@ class SchedulesGroup(app_commands.Group, name="schedules", description="Manage r
     async def add_schedule(
         self,
         interaction: discord.Interaction,
-        quizids: str,
+        quizids: str | None = None,
+        quizname: str | None = None,
         random: bool = True,
         code: str | None = None,
         cron: str | None = None,
@@ -184,6 +189,13 @@ class SchedulesGroup(app_commands.Group, name="schedules", description="Manage r
         start: str | None = None,
         end: str | None = None,
     ) -> None:
+        if bool(quizids) == bool(quizname):
+            await interaction.response.send_message(
+                "Provide either `quizids` or `quizname`, not both (and at least one).",
+                ephemeral=True,
+            )
+            return
+
         error = _validate(random, code, cron, at)
         if error:
             await interaction.response.send_message(error, ephemeral=True)
@@ -206,10 +218,20 @@ class SchedulesGroup(app_commands.Group, name="schedules", description="Manage r
 
         await interaction.response.defer(ephemeral=True)
 
-        ids = _parse_ids(quizids)
-        if not ids:
-            await interaction.followup.send("No valid quiz IDs provided.", ephemeral=True)
-            return
+        if quizids:
+            ids = parse_ids(quizids)
+            if not ids:
+                await interaction.followup.send(
+                    f"No valid IDs in `{quizids}`.", ephemeral=True
+                )
+                return
+        else:
+            ids = lookup_quiz_ids_by_name(quizname, self._svc.quiz_repo)
+            if not ids:
+                await interaction.followup.send(
+                    f"No quizzes found with name `{quizname}`.", ephemeral=True
+                )
+                return
 
         kind = ScheduleKind.RECURRING if cron else ScheduleKind.ONESHOT
         group_id = str(uuid.uuid4())

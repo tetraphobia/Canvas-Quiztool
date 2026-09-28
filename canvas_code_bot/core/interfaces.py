@@ -8,6 +8,7 @@ from canvas_code_bot.core.models import (
     CanvasQuizInfo,
     CodePolicy,
     Config,
+    Course,
     HistoryEntry,
     Quiz,
     Schedule,
@@ -51,6 +52,23 @@ class CanvasPort(Protocol):
         """Confirm the quiz's current access code matches code.
 
         Returns True if it matches, False otherwise. Raises CanvasError on failure.
+        """
+        ...
+
+    async def get_course_name(self, course_id: int) -> str:
+        """Return the Canvas course name for course_id.
+
+        Falls back to 'Course {course_id}' if the name cannot be fetched.
+        """
+        ...
+
+    async def create_announcement(
+        self, course_id: int, title: str, message: str
+    ) -> int:
+        """Post an announcement to a Canvas course. Returns the HTTP status code.
+
+        Raises CanvasAuthError on 401, CanvasNotFoundError on 404,
+        CanvasError on other failures.
         """
         ...
 
@@ -219,3 +237,15 @@ class AllowedRoleRepo(Protocol):
     def has_any(self, role_ids: set[int]) -> bool:
         """Return True if at least one of ``role_ids`` is in the allowed set."""
         ...
+
+
+class CourseRepo(Protocol):
+    """Persistence for Canvas courses discovered during quiz registration."""
+
+    def upsert(self, course_id: int, course_name: str) -> None:
+        """Insert or update the course name for course_id."""
+        ...
+
+    def get(self, course_id: int) -> Course | None: ...
+
+    def list_all(self) -> list[Course]: ...

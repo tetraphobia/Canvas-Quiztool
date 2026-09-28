@@ -9,6 +9,7 @@ from sqlalchemy.orm import sessionmaker
 from canvas_code_bot.core.models import (
     AllowedRole,
     Config,
+    Course,
     HistoryEntry,
     Quiz,
     QuizEngine,
@@ -21,6 +22,7 @@ from canvas_code_bot.core.models import (
 from canvas_code_bot.data.entities import (
     AllowedRoleEntity,
     ConfigEntity,
+    CourseEntity,
     HistoryEntity,
     QuizEntity,
     ScheduleEntity,
@@ -443,3 +445,26 @@ class SqlAllowedRoleRepo:
                 .limit(1)
             )
             return result is not None
+
+
+class SqlCourseRepo:
+    def __init__(self, session_factory: sessionmaker) -> None:
+        self._sf = session_factory
+
+    def upsert(self, course_id: int, course_name: str) -> None:
+        with self._sf.begin() as session:
+            e = session.get(CourseEntity, course_id)
+            if e is None:
+                session.add(CourseEntity(course_id=course_id, course_name=course_name))
+            else:
+                e.course_name = course_name
+
+    def get(self, course_id: int) -> Course | None:
+        with self._sf() as session:
+            e = session.get(CourseEntity, course_id)
+            return Course(course_id=e.course_id, course_name=e.course_name) if e else None
+
+    def list_all(self) -> list[Course]:
+        with self._sf() as session:
+            rows = session.scalars(select(CourseEntity)).all()
+            return [Course(course_id=r.course_id, course_name=r.course_name) for r in rows]

@@ -10,6 +10,7 @@ from canvas_code_bot.core.interfaces import (
     AllowedRoleRepo,
     CanvasPort,
     ConfigRepo,
+    CourseRepo,
     HistoryRepo,
     QuizRepo,
     ScheduleRepo,
@@ -35,6 +36,7 @@ class Services:
     config_repo: ConfigRepo
     scheduler: RotationScheduler
     canvas: CanvasPort
+    course_repo: CourseRepo
     allowed_role_repo: AllowedRoleRepo
     admin_discord_id: int
 

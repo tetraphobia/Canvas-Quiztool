@@ -5,7 +5,7 @@ import logging
 import discord
 from discord import app_commands
 
-from canvas_code_bot.bot.commands.command_utils import parse_ids
+from canvas_code_bot.bot.commands.command_utils import lookup_quiz_ids_by_name, parse_ids
 from canvas_code_bot.core.models import CodePolicy, TriggeredBy
 
 logger = logging.getLogger(__name__)
@@ -39,10 +39,13 @@ class CodesGroup(app_commands.Group, name="codes", description="Access-code oper
             inline=False,
         )
         embed.add_field(
-            name="`update quizids:<ids> [options]`",
+            name="`update [quizids:<ids>] [quizname:<name>] [options]`",
             value=(
-                "Immediately rotate the access code for one or more quizzes "
-                "(comma-separated IDs). The new code is posted to the relay channel.\n"
+                "Immediately rotate the access code for one or more quizzes. "
+                "The new code is posted to the relay channel.\n"
+                "**Quiz selection** — provide exactly one of:\n"
+                "• `quizids:<ids>` — comma-separated numeric IDs (e.g. `1,2,3`)\n"
+                "• `quizname:<name>` — exact quiz name, targets all sections (e.g. `Midterm Exam`)\n"
                 "**Code** — provide exactly one of:\n"
                 "• `random:True` *(default)* — generate a random 6-character code\n"
                 "• `random:False code:<value>` — set a specific fixed code"
@@ -102,17 +105,26 @@ class CodesGroup(app_commands.Group, name="codes", description="Access-code oper
         description="Rotate the access code immediately for one or more quizzes.",
     )
     @app_commands.describe(
-        quizids="Comma-separated quiz IDs.",
+        quizids="Comma-separated numeric quiz IDs (mutually exclusive with quizname).",
+        quizname="Exact quiz name — targets all sections with this name (mutually exclusive with quizids).",
         random="Generate a random code (default: true).",
         code="Fixed code to use (only when random=false).",
     )
     async def update_code(
         self,
         interaction: discord.Interaction,
-        quizids: str,
+        quizids: str | None = None,
+        quizname: str | None = None,
         random: bool = True,
         code: str | None = None,
     ) -> None:
+        if bool(quizids) == bool(quizname):
+            await interaction.response.send_message(
+                "Provide either `quizids` or `quizname`, not both (and at least one).",
+                ephemeral=True,
+            )
+            return
+
         error = _validate_code_args(random, code)
         if error:
             await interaction.response.send_message(error, ephemeral=True)
@@ -120,10 +132,20 @@ class CodesGroup(app_commands.Group, name="codes", description="Access-code oper
 
         await interaction.response.defer(ephemeral=True)
 
-        ids = parse_ids(quizids)
-        if not ids:
-            await interaction.followup.send("No valid quiz IDs provided.", ephemeral=True)
-            return
+        if quizids:
+            ids = parse_ids(quizids)
+            if not ids:
+                await interaction.followup.send(
+                    f"No valid IDs in `{quizids}`.", ephemeral=True
+                )
+                return
+        else:
+            ids = lookup_quiz_ids_by_name(quizname, self._svc.quiz_repo)
+            if not ids:
+                await interaction.followup.send(
+                    f"No quizzes found with name `{quizname}`.", ephemeral=True
+                )
+                return
 
         lines: list[str] = []
         pairs = []

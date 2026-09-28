@@ -65,6 +65,22 @@ class CanvasClient:
                 return 204, None
             return resp.status, await resp.json()
 
+    async def post(self, path: str, payload: dict) -> tuple[int, dict | None]:
+        """
+        POST ``path`` with JSON ``payload``.
+        Returns ``(status_code, body_dict_or_None)``.
+        Raises CanvasError on non-2xx.
+        """
+        async with self._session.post(
+            self._url(path),
+            headers={**self._headers, "Content-Type": "application/json"},
+            json=payload,
+        ) as resp:
+            await self._check_response(resp)
+            if resp.status == 204:
+                return 204, None
+            return resp.status, await resp.json()
+
     async def _check_response(self, resp: aiohttp.ClientResponse) -> None:
         if resp.status == 401:
             raise CanvasAuthError(
